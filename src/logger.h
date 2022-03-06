@@ -23,15 +23,15 @@ public:
   void setSyslogServer(const String &server, unsigned int port, const String &hostname);
   void setSyslogServer(IPAddress ip, unsigned int port, const String &hostname);
 
-  void print(LoggerLevel level, const String &module, const String &text);
-  void println(LoggerLevel level, const String &module, const String &text);
+  void log(LoggerLevel level, const String &module, const char *fmt, ...);
 
 private:
   Stream *    _serial;
   LoggerLevel _level;
-  bool        _printIsNewline;
 
-  void printHeader(LoggerLevel level, const String &module, bool isln);
+  void vlogf(LoggerLevel level, const String &module, const char *fmt, va_list args);
+  void println(LoggerLevel level, const String &module, const String &text);
+  void printHeader(LoggerLevel level, const String &module);
 
   // syslog members
   bool      _isSyslogSet;

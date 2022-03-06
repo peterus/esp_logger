@@ -1,16 +1,16 @@
 #include "logger.h"
 
 namespace logging {
-Logger::Logger() : _serial(&Serial), _level(LoggerLevel::LOGGER_LEVEL_DEBUG), _printIsNewline(true), _isSyslogSet(false) {
+Logger::Logger() : _serial(&Serial), _level(LoggerLevel::LOGGER_LEVEL_DEBUG), _isSyslogSet(false) {
 }
 
-Logger::Logger(LoggerLevel level) : _serial(&Serial), _level(level), _printIsNewline(true), _isSyslogSet(false) {
+Logger::Logger(LoggerLevel level) : _serial(&Serial), _level(level), _isSyslogSet(false) {
 }
 
-Logger::Logger(Stream *serial) : _serial(serial), _level(LoggerLevel::LOGGER_LEVEL_DEBUG), _printIsNewline(true), _isSyslogSet(false) {
+Logger::Logger(Stream *serial) : _serial(serial), _level(LoggerLevel::LOGGER_LEVEL_DEBUG), _isSyslogSet(false) {
 }
 
-Logger::Logger(Stream *serial, LoggerLevel level) : _serial(serial), _level(level), _printIsNewline(true), _isSyslogSet(false) {
+Logger::Logger(Stream *serial, LoggerLevel level) : _serial(serial), _level(level), _isSyslogSet(false) {
 }
 
 Logger::~Logger() {
@@ -42,24 +42,31 @@ void Logger::setSyslogServer(IPAddress ip, unsigned int port, const String &host
   _isSyslogSet    = true;
 }
 
-// cppcheck-suppress unusedFunction
-void Logger::print(LoggerLevel level, const String &module, const String &text) {
-  if (level <= _level) {
-    _serial->print(level.getLineColor());
-    printHeader(level, module, false);
-    _serial->print(text);
-    _serial->print(level.resetColor());
+void Logger::log(LoggerLevel level, const String &module, const char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vlogf(level, module, fmt, args);
+  va_end(args);
+}
+
+void Logger::vlogf(LoggerLevel level, const String &module, const char *fmt, va_list args) {
+  size_t initialLen = strlen(fmt);
+  char * message    = new char[initialLen + 1];
+  size_t len        = vsnprintf(message, initialLen + 1, fmt, args);
+  if (len > initialLen) {
+    delete[] message;
+    message = new char[len + 1];
+    vsnprintf(message, len + 1, fmt, args);
   }
-  if (_isSyslogSet) {
-    syslogLog(level, module, text);
-  }
+  println(level, module, message);
+  delete[] message;
 }
 
 // cppcheck-suppress unusedFunction
 void Logger::println(LoggerLevel level, const String &module, const String &text) {
   if (level <= _level) {
     _serial->print(level.getLineColor());
-    printHeader(level, module, true);
+    printHeader(level, module);
     _serial->print(text);
     _serial->println(level.resetColor());
   }
@@ -68,19 +75,12 @@ void Logger::println(LoggerLevel level, const String &module, const String &text
   }
 }
 
-void Logger::printHeader(LoggerLevel level, const String &module, bool isln) {
-  if (_printIsNewline) {
-    _serial->print("[");
-    _serial->print(level.toString());
-    _serial->print("][");
-    _serial->print(module);
-    _serial->print("] ");
-    if (!isln) {
-      _printIsNewline = false;
-    }
-  } else {
-    _printIsNewline = isln;
-  }
+void Logger::printHeader(LoggerLevel level, const String &module) {
+  _serial->print("[");
+  _serial->print(level.toString());
+  _serial->print("][");
+  _serial->print(module);
+  _serial->print("] ");
 }
 
 void Logger::syslogLog(LoggerLevel level, const String &module, const String &text) {
