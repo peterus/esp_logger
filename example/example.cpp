@@ -23,7 +23,7 @@ void setup() {
   logger.println(logging::LoggerLevel::LOGGER_LEVEL_INFO, "WIFI", "IP address: ");
   logger.println(logging::LoggerLevel::LOGGER_LEVEL_INFO, "WIFI", WiFi.localIP().toString());
 
-  logger.setSyslogServer(IPAddress(142, 132, 174, 232), 514, "TestDevice");
+  logger.setSyslogServer(IPAddress(10, 0, 0, 123), 514, "TestDevice");
 
   logger.println(logging::LoggerLevel::LOGGER_LEVEL_ERROR, "MAIN", "This is a error");
   delay(100);
