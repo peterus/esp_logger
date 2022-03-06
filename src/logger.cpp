@@ -1,36 +1,19 @@
 #include "logger.h"
 
-#undef LOG_RESET_COLOR
-#undef LOG_COLOR_E
-#undef LOG_COLOR_W
-#undef LOG_COLOR_I
-#undef LOG_COLOR_D
-#undef LOG_COLOR_V
+namespace logging {
+Logger::Logger() : _serial(&Serial), _level(LoggerLevel::LOGGER_LEVEL_DEBUG), _printIsNewline(true), _isSyslogSet(false) {
+}
 
-#define LOG_COLOR_BLACK  "30"
-#define LOG_COLOR_RED    "31"
-#define LOG_COLOR_GREEN  "32"
-#define LOG_COLOR_BROWN  "33"
-#define LOG_COLOR_BLUE   "34"
-#define LOG_COLOR_PURPLE "35"
-#define LOG_COLOR_CYAN   "36"
-#define LOG_COLOR(COLOR) "\033[0;" COLOR "m"
-#define LOG_BOLD(COLOR)  "\033[1;" COLOR "m"
-#define LOG_RESET_COLOR  "\033[0m"
-#define LOG_COLOR_E      LOG_COLOR(LOG_COLOR_RED)
-#define LOG_COLOR_W      LOG_COLOR(LOG_COLOR_BROWN)
-#define LOG_COLOR_I      LOG_COLOR(LOG_COLOR_GREEN)
-#define LOG_COLOR_D      LOG_COLOR(LOG_COLOR_BLUE)
-#define LOG_COLOR_V      LOG_COLOR(LOG_COLOR_CYAN)
+Logger::Logger(LoggerLevel level) : _serial(&Serial), _level(level), _printIsNewline(true), _isSyslogSet(false) {
+}
 
-Logger::Logger()
-    :
-#ifdef NO_GLOBAL_INSTANCES
-      _serial(0),
-#else
-      _serial(&Serial),
-#endif
-      _level(DEBUG_LEVEL_DEBUG), _printIsNewline(true) {
+Logger::Logger(Stream *serial) : _serial(serial), _level(LoggerLevel::LOGGER_LEVEL_DEBUG), _printIsNewline(true), _isSyslogSet(false) {
+}
+
+Logger::Logger(Stream *serial, LoggerLevel level) : _serial(serial), _level(level), _printIsNewline(true), _isSyslogSet(false) {
+}
+
+Logger::~Logger() {
 }
 
 // cppcheck-suppress unusedFunction
@@ -39,147 +22,59 @@ void Logger::setSerial(Stream *serial) {
 }
 
 // cppcheck-suppress unusedFunction
-void Logger::setDebugLevel(debug_level_t level) {
+void Logger::setDebugLevel(LoggerLevel level) {
   _level = level;
 }
 
 // cppcheck-suppress unusedFunction
-void Logger::printA(const String &text, const char *file, uint32_t line) {
-  printStartColor(DEBUG_LEVEL_NONE);
-  printHeader(DEBUG_LEVEL_NONE, file, line, false);
-  _serial->print(text);
-  printEndColor(DEBUG_LEVEL_NONE);
+void Logger::setSyslogServer(const String &server, unsigned int port, const String &hostname) {
+  _syslogServer   = server;
+  _syslogPort     = port;
+  _syslogHostname = hostname;
+  _isSyslogSet    = true;
 }
 
 // cppcheck-suppress unusedFunction
-void Logger::printE(const String &text, const char *file, uint32_t line) {
-  printStartColor(DEBUG_LEVEL_ERROR);
-  printHeader(DEBUG_LEVEL_ERROR, file, line, false);
-  _serial->print(text);
-  printEndColor(DEBUG_LEVEL_ERROR);
+void Logger::setSyslogServer(IPAddress ip, unsigned int port, const String &hostname) {
+  _syslogIp       = ip;
+  _syslogPort     = port;
+  _syslogHostname = hostname;
+  _isSyslogSet    = true;
 }
 
 // cppcheck-suppress unusedFunction
-void Logger::printlnA(const String &text, const char *file, uint32_t line) {
-  printStartColor(DEBUG_LEVEL_NONE);
-  printHeader(DEBUG_LEVEL_NONE, file, line, true);
-  _serial->println(text);
-  printEndColor(DEBUG_LEVEL_NONE);
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printlnE(const String &text, const char *file, uint32_t line) {
-  printStartColor(DEBUG_LEVEL_ERROR);
-  printHeader(DEBUG_LEVEL_ERROR, file, line, true);
-  _serial->println(text);
-  printEndColor(DEBUG_LEVEL_ERROR);
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printV(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_VERBOSE) {
-    printStartColor(DEBUG_LEVEL_VERBOSE);
-    printHeader(DEBUG_LEVEL_VERBOSE, file, line, false);
+void Logger::print(LoggerLevel level, const String &module, const String &text) {
+  if (level <= _level) {
+    _serial->print(level.getLineColor());
+    printHeader(level, module, false);
     _serial->print(text);
-    printEndColor(DEBUG_LEVEL_VERBOSE);
+    _serial->print(level.resetColor());
+  }
+  if (_isSyslogSet) {
+    syslogLog(level, module, text);
   }
 }
 
 // cppcheck-suppress unusedFunction
-void Logger::printD(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_DEBUG) {
-    printStartColor(DEBUG_LEVEL_DEBUG);
-    printHeader(DEBUG_LEVEL_DEBUG, file, line, false);
+void Logger::println(LoggerLevel level, const String &module, const String &text) {
+  if (level <= _level) {
+    _serial->print(level.getLineColor());
+    printHeader(level, module, true);
     _serial->print(text);
-    printEndColor(DEBUG_LEVEL_DEBUG);
+    _serial->println(level.resetColor());
+  }
+  if (_isSyslogSet) {
+    syslogLog(level, module, text);
   }
 }
 
-// cppcheck-suppress unusedFunction
-void Logger::printI(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_INFO) {
-    printStartColor(DEBUG_LEVEL_INFO);
-    printHeader(DEBUG_LEVEL_INFO, file, line, false);
-    _serial->print(text);
-    printEndColor(DEBUG_LEVEL_INFO);
-  }
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printW(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_WARN) {
-    printStartColor(DEBUG_LEVEL_WARN);
-    printHeader(DEBUG_LEVEL_WARN, file, line, false);
-    _serial->print(text);
-    printEndColor(DEBUG_LEVEL_WARN);
-  }
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printlnV(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_VERBOSE) {
-    printStartColor(DEBUG_LEVEL_VERBOSE);
-    printHeader(DEBUG_LEVEL_VERBOSE, file, line, true);
-    _serial->println(text);
-    printEndColor(DEBUG_LEVEL_VERBOSE);
-  }
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printlnD(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_DEBUG) {
-    printStartColor(DEBUG_LEVEL_DEBUG);
-    printHeader(DEBUG_LEVEL_DEBUG, file, line, true);
-    _serial->println(text);
-    printEndColor(DEBUG_LEVEL_DEBUG);
-  }
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printlnI(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_INFO) {
-    printStartColor(DEBUG_LEVEL_INFO);
-    printHeader(DEBUG_LEVEL_INFO, file, line, true);
-    _serial->println(text);
-    printEndColor(DEBUG_LEVEL_INFO);
-  }
-}
-
-// cppcheck-suppress unusedFunction
-void Logger::printlnW(const String &text, const char *file, uint32_t line) {
-  if (_level >= DEBUG_LEVEL_WARN) {
-    printStartColor(DEBUG_LEVEL_WARN);
-    printHeader(DEBUG_LEVEL_WARN, file, line, true);
-    _serial->println(text);
-    printEndColor(DEBUG_LEVEL_WARN);
-  }
-}
-
-void Logger::printStartColor(debug_level_t level) {
-  switch (level) {
-  case DEBUG_LEVEL_ERROR:
-    _serial->print(LOG_COLOR_E);
-    break;
-  case DEBUG_LEVEL_WARN:
-    _serial->print(LOG_COLOR_W);
-    break;
-  case DEBUG_LEVEL_INFO:
-    _serial->print(LOG_COLOR_I);
-    break;
-  case DEBUG_LEVEL_DEBUG:
-    _serial->print(LOG_COLOR_D);
-    break;
-  case DEBUG_LEVEL_VERBOSE:
-    _serial->print(LOG_COLOR_V);
-    break;
-  default:
-    break;
-  }
-}
-
-void Logger::printHeader(debug_level_t level, const char *file, uint32_t line, bool isln) {
+void Logger::printHeader(LoggerLevel level, const String &module, bool isln) {
   if (_printIsNewline) {
-    _serial->printf("%c %25s %4d : ", levelToChar(level), file, line);
+    _serial->print("[");
+    _serial->print(level.toString());
+    _serial->print("][");
+    _serial->print(module);
+    _serial->print("] ");
     if (!isln) {
       _printIsNewline = false;
     }
@@ -188,33 +83,28 @@ void Logger::printHeader(debug_level_t level, const char *file, uint32_t line, b
   }
 }
 
-void Logger::printEndColor(debug_level_t level) {
-  switch (level) {
-  case DEBUG_LEVEL_ERROR:
-  case DEBUG_LEVEL_WARN:
-  case DEBUG_LEVEL_INFO:
-  case DEBUG_LEVEL_DEBUG:
-  case DEBUG_LEVEL_VERBOSE:
-    _serial->print(LOG_RESET_COLOR);
-    break;
-  default:
-    break;
+void Logger::syslogLog(LoggerLevel level, const String &module, const String &text) {
+  int result;
+  if (_syslogIp == INADDR_NONE) {
+    result = _syslogUdp.beginPacket(_syslogServer.c_str(), _syslogPort);
+  } else {
+    result = _syslogUdp.beginPacket(_syslogIp, _syslogPort);
   }
-}
 
-char Logger::levelToChar(debug_level_t level) {
-  switch (level) {
-  case DEBUG_LEVEL_ERROR:
-    return 'E';
-  case DEBUG_LEVEL_WARN:
-    return 'W';
-  case DEBUG_LEVEL_INFO:
-    return 'I';
-  case DEBUG_LEVEL_DEBUG:
-    return 'D';
-  case DEBUG_LEVEL_VERBOSE:
-    return 'V';
-  default:
-    return ' ';
+  if (result != 1) {
+    return;
   }
+
+#define LOG_KERN (0 << 3) /* kernel messages */
+
+  _syslogUdp.print('<');
+  _syslogUdp.print(LOG_KERN | level.getValue());
+  _syslogUdp.print(">1 - ");
+  _syslogUdp.print(_syslogHostname);
+  _syslogUdp.print(' ');
+  _syslogUdp.print(module);
+  _syslogUdp.print(" - - - \xEF\xBB\xBF");
+  _syslogUdp.print(text);
+  _syslogUdp.endPacket();
 }
+} // namespace logging
