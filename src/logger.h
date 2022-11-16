@@ -23,7 +23,7 @@ public:
   void setSyslogServer(const String &server, unsigned int port, const String &hostname);
   void setSyslogServer(IPAddress ip, unsigned int port, const String &hostname);
 
-  void log(LoggerLevel level, const String &module, const char *fmt, ...);
+  void __attribute__((format(printf, 4, 5))) log(LoggerLevel level, const String &module, const char *fmt, ...);
 
 private:
   Stream *    _serial;
